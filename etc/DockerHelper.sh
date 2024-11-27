@@ -20,9 +20,7 @@ usage: $0 [CMD] [OPTIONS]
   push                          Push the docker image to Docker Hub
 
   OPTIONS:
-  -os=OS_NAME                   Choose between:
-                                  ubuntu20.04, ubuntu22.04 (default),
-                                  ubuntu24.04, rockylinux9, opensuse or debian11.
+  -os=OS_NAME                   Choose between ubuntu22.04 (default), ubuntu20.04, rhel, opensuse and debian11.
   -target=TARGET                Choose target for the Docker image:
                                   'dev': os + packages to compile app
                                   'builder': os + packages to compile app +
@@ -60,17 +58,14 @@ _setup() {
         "ubuntu22.04")
             osBaseImage="ubuntu:22.04"
             ;;
-        "ubuntu24.04")
-            osBaseImage="ubuntu:24.04"
-            ;;
         "opensuse")
             osBaseImage="opensuse/leap"
             ;;
         "debian11")
             osBaseImage="debian:bullseye"
             ;;
-        "rockylinux9")
-            osBaseImage="rockylinux:9"
+        "rhel")
+            osBaseImage="redhat/ubi8"
             ;;
         *)
             echo "Target OS ${os} not supported" >&2
@@ -96,7 +91,7 @@ _setup() {
             imageName="${IMAGE_NAME_OVERRIDE:-"${imageName}-${compiler}"}"
             ;;
         "dev" )
-            fromImage="${FROM_IMAGE_OVERRIDE:-${osBaseImage}}"
+            fromImage="${FROM_IMAGE_OVERRIDE:-$osBaseImage}"
             context="etc"
             buildArgs="-save-deps-prefixes=${depsPrefixesFile}"
             if [[ "${isLocal}" == "yes" ]]; then
@@ -105,7 +100,7 @@ _setup() {
             if [[ "${equivalenceDeps}" == "yes" ]]; then
                 buildArgs="${buildArgs} -eqy"
             fi
-            if [[ "${CI}" == "yes" ]]; then
+            if [[ "$CI" == "yes" ]]; then
                 buildArgs="${buildArgs} -ci"
             fi
             if [[ "${buildArgs}" != "" ]]; then
@@ -186,14 +181,12 @@ _checkFromImage() {
         fi
     fi
     set -e
+    exit 42
 }
 
 _create() {
-    if [[ "${target}" == "binary" ]]; then
-        _checkFromImage "builder"
-    fi
-    if [[ "${target}" == "builder" ]]; then
-        _checkFromImage "dev"
+    if [[ "${target}" != "dev" ]]; then
+        _checkFromImage
     fi
     echo "Create docker image ${imagePath} using ${file}"
     eval docker buildx build \
@@ -315,9 +308,9 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [[ "${numThreads}" == "-1" ]]; then
-    if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         numThreads=$(nproc --all)
-    elif [[ "${OSTYPE}" == "darwin"* ]]; then
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
         numThreads=$(sysctl -n hw.ncpu)
     else
         numThreads=2
